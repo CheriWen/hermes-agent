@@ -273,6 +273,15 @@ class EmailAdapter(BasePlatformAdapter):
 
         logger.info("[Email] Adapter initialized for %s", self._address)
 
+    def _smtp_connect(self, timeout: int = 30) -> "smtplib.SMTP":
+        """Create an SMTP connection, choosing SSL (port 465) or STARTTLS (others)."""
+        ctx = ssl.create_default_context()
+        if self._smtp_port == 465:
+            return smtplib.SMTP_SSL(self._smtp_host, self._smtp_port, timeout=timeout, context=ctx)
+        smtp = smtplib.SMTP(self._smtp_host, self._smtp_port, timeout=timeout)
+        smtp.starttls(context=ctx)
+        return smtp
+
     def _trim_seen_uids(self) -> None:
         """Keep only the most recent UIDs to prevent unbounded memory growth.
 
@@ -316,8 +325,7 @@ class EmailAdapter(BasePlatformAdapter):
 
         try:
             # Test SMTP connection
-            smtp = smtplib.SMTP(self._smtp_host, self._smtp_port, timeout=30)
-            smtp.starttls(context=ssl.create_default_context())
+            smtp = self._smtp_connect()
             smtp.login(self._address, self._password)
             smtp.quit()
             logger.info("[Email] SMTP connection test passed.")
@@ -548,9 +556,8 @@ class EmailAdapter(BasePlatformAdapter):
 
         msg.attach(MIMEText(body, "plain", "utf-8"))
 
-        smtp = smtplib.SMTP(self._smtp_host, self._smtp_port, timeout=30)
+        smtp = self._smtp_connect()
         try:
-            smtp.starttls(context=ssl.create_default_context())
             smtp.login(self._address, self._password)
             smtp.send_message(msg)
         finally:
@@ -670,9 +677,8 @@ class EmailAdapter(BasePlatformAdapter):
             except Exception as e:
                 logger.warning("[Email] Failed to attach %s: %s", file_path, e)
 
-        smtp = smtplib.SMTP(self._smtp_host, self._smtp_port, timeout=30)
+        smtp = self._smtp_connect()
         try:
-            smtp.starttls(context=ssl.create_default_context())
             smtp.login(self._address, self._password)
             smtp.send_message(msg)
         finally:
@@ -749,9 +755,8 @@ class EmailAdapter(BasePlatformAdapter):
             part.add_header("Content-Disposition", f"attachment; filename={fname}")
             msg.attach(part)
 
-        smtp = smtplib.SMTP(self._smtp_host, self._smtp_port, timeout=30)
+        smtp = self._smtp_connect()
         try:
-            smtp.starttls(context=ssl.create_default_context())
             smtp.login(self._address, self._password)
             smtp.send_message(msg)
         finally:
